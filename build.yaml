@@ -1,0 +1,91 @@
+---
+- name: SetUp Build Environment
+  hosts: myserver
+  become: true
+  become_method: ansible.builtin.sudo
+  tasks:
+    - name: Check if iptables rule for port 3000 exists
+      ansible.builtin.shell: iptables -L INPUT -n | grep -q "tcp dpt:3000"
+      register: iptables_check
+      changed_when: false
+      ignore_errors: true
+    - name: Add iptables rule for port 3000 if it does not exist
+      ansible.builtin.command: iptables -I INPUT -p tcp -m tcp --dport 3000 -j ACCEPT
+      when: iptables_check.rc != 0
+      changed_when: iptables_check.rc == 1
+    - name: Check if iptables rule for port 80 exists
+      ansible.builtin.shell: iptables -L INPUT -n | grep -q "tcp dpt:80"
+      register: iptables_check
+      changed_when: false
+      ignore_errors: true
+    - name: Add iptables rule for port 80 if it does not exist
+      ansible.builtin.command: iptables -I INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+      when: iptables_check.rc != 0
+      changed_when: iptables_check.rc == 1
+    - name: Check if port redirection rule exists
+      ansible.builtin.shell: iptables -t nat -L PREROUTING -n | grep -q "tcp dpt:80 redir ports 3000"
+      register: iptables_nat_check
+      changed_when: false
+      ignore_errors: true
+    - name: Rerouting Port 3000 to 80
+      ansible.builtin.command: iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 3000
+      when: iptables_nat_check.rc != 0
+      changed_when: iptables_nat_check.rc == 1
+    - name: Install NodeJs, npm, Nginx
+      ansible.builtin.apt:
+        name:
+          - nodejs
+          - npm
+          - nginx
+        state: present
+    - name: Delete existing coffee-project
+      ansible.builtin.file:
+        path: /var/coffee-project-main
+        state: absent
+        mode: '0755'
+    - name: Create coffee-project directory
+      ansible.builtin.file:
+        path: /var/coffee-project-main
+        state: directory
+        mode: '0755'
+    - name: Copy nodejs app into the created directory
+      ansible.builtin.copy:
+        src: ./coffee-project-main/
+        dest: /var/coffee-project-main/
+        mode: '0755'
+    - name: Check npm dependencies
+      ansible.builtin.command: npm list
+      args:
+        chdir: /var/coffee-project-main/
+      register: npm_check
+      changed_when: false
+      failed_when: npm_check.rc > 1
+    - name: Install npm dependencies
+      ansible.builtin.command: npm install
+      args:
+        chdir: /var/coffee-project-main/
+      register: npm_install
+      changed_when: "'up to date' not in npm_install.stdout"
+
+    - name: Run NodeJs app
+      ansible.builtin.command: node app.js
+      args:
+        chdir: /var/coffee-project-main/
+      async: 6000
+      delay: 10
+      poll: 0
+      changed_when: false
+    - name: Check if the web server is running and can be accessed at port 80
+      ansible.builtin.uri:
+        url: "http://localhost:80/"
+        return_content: true
+      register: web_page_response
+      ignore_errors: true
+    - name: Display the success message if the web server is running
+      ansible.builtin.debug:
+        msg: "Web server is up at port 80"
+      when: web_page_response.status == 200
+    - name: Fail message if status code is not 200
+      ansible.builtin.fail:
+        msg: "Web page did not return a status code of 200"
+      when: web_page_response.status != 200

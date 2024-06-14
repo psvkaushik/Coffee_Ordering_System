@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dev2
+  name: dev2
+  annotations:
+    kubectl.kubernetes.io/change-cause: "Stable version"
+spec:
+  selector:
+    matchLabels:
+      app: dev2
+  template:
+    metadata:
+      labels:
+        app: dev2
+    spec:
+      containers:
+        - name: dev
+          image: satoru429/dev2:v1
+          imagePullPolicy: Always
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: "/.ssh/id_rsa"
+              name: ssh-config
+              subPath: id_rsa
+              readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: ssh-config
+          configMap:
+            name: ssh-config-4
+            defaultMode: 384

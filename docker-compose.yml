@@ -1,0 +1,9 @@
+version: '3'
+services:
+  ansible-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: satoru429/dev2:v1
+    volumes:
+      - ~/.ssh:/.ssh

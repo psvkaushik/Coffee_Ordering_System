@@ -1,0 +1,23 @@
+- name: Kubernetes Deployment
+  hosts: kubeserver
+  become: true
+  become_method: ansible.builtin.sudo
+  tasks:
+    # noqa 301
+    - name: Delete existing Configuration file
+      ansible.builtin.file:
+        path: config.yaml
+        state: absent
+    - name: Copy Deployment Configuration
+      ansible.builtin.copy:
+        src: config.yaml
+        dest: /home/svangal/
+        mode: '0644'
+    - name: Run the Kubernetes Deployment  # noqa 301
+      ansible.builtin.command: kubectl apply -f config.yaml  # noqa 301
+      environment:
+        KUBECONFIG: /home/svangal/.kube/config
+    - name: Annotate Change status of Deployment  # noqa 301
+      ansible.builtin.command: kubectl annotate deployment/dev2 kubernetes.io/change-cause="Stable version"  # noqa 301
+      environment:
+        KUBECONFIG: /home/svangal/.kube/config
